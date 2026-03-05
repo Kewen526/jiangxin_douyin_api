@@ -67,12 +67,25 @@ SCHEDULE_MINUTE = 0
 #  Excel 列名 → API 字段映射
 # ─────────────────────────────────────────
 EXCEL_COLUMN_MAPPING = {
+    # 当前抖音导出列名
+    "商家名称": "merchant_name",
     "商家ID": "merchant_id",
-    "生活服务账号名称": "merchant_name",
     "行业": "industry",
+    "类目": "category",
+    "合作模式": "cooperation_mode",
+    "跟进人": "follower_name",
+    "商家经营分": "merchant_manage_score",
+    "支付GMV": "pay_amount",
+    "核销GMV": "confirm_amount",
+    "退款GMV": "refund_amount",
+    "视频直接支付GMV": "item_pay_amount",
+    "直播支付GMV": "room_pay_amount",
+    "总预估佣金": "ledger_commission",
+    "服务商预估佣金": "ledger_smc_commission",
+    # 旧版列名（兼容）
+    "生活服务账号名称": "merchant_name",
     "服务类型": "category",
     "商家行业": "cooperation_mode",
-    "跟进人": "follower_name",
     "商家管理分": "merchant_manage_score",
     "支付金额": "pay_amount",
     "核销金额": "confirm_amount",
