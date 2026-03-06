@@ -67,7 +67,7 @@ SCHEDULE_MINUTE = 0
 #  Excel 列名 → API 字段映射
 # ─────────────────────────────────────────
 EXCEL_COLUMN_MAPPING = {
-    # 当前抖音导出列名
+    # 当前抖音导出列名（完整匹配）
     "商家名称": "merchant_name",
     "商家ID": "merchant_id",
     "行业": "industry",
@@ -95,6 +95,9 @@ EXCEL_COLUMN_MAPPING = {
     "分账佣金": "ledger_commission",
     "分账服务商佣金": "ledger_smc_commission",
 }
+
+# 不在映射中的列也保留（使用原始列名），确保不丢失数据
+KEEP_UNMAPPED_COLUMNS = True
 
 # 金额类字段（需转为数值类型）
 NUMERIC_FIELDS = [
