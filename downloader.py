@@ -264,13 +264,41 @@ def poll_list_panel(cookie_dict, account_id, ac_app, secsdk_token,
     raise TimeoutError("轮询超时，新文件未能生成")
 
 
+def _make_download_headers():
+    """构造下载文件时的浏览器 Headers，绕过 CDN 空数据限制"""
+    return {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                  "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                  "application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "cache-control": "no-cache",
+        "pragma": "no-cache",
+        "referer": "https://www.life-partner.cn/",
+        "sec-ch-ua": '"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    }
+
+
 def download_file(url, save_path):
-    """下载单个文件"""
+    """下载单个文件（带浏览器 Headers 绕过 CDN 限制）"""
+    headers = _make_download_headers()
     if USE_CURL_CFFI:
-        resp = curl_requests.get(url, timeout=60, impersonate="chrome120")
+        resp = curl_requests.get(
+            url, headers=headers, timeout=60, impersonate="chrome120"
+        )
     else:
         resp = std_requests.get(
-            url, timeout=60, proxies={"http": None, "https": None}
+            url, headers=headers, timeout=60,
+            proxies={"http": None, "https": None},
         )
     resp.raise_for_status()
     with open(save_path, "wb") as f:
