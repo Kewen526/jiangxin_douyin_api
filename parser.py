@@ -16,16 +16,21 @@ def parse_xlsx(file_path):
 
     如果只有标题行（raw_row_count == 0），rows 为空列表。
     """
-    wb = load_workbook(file_path, read_only=True, data_only=True)
+    wb = load_workbook(file_path, data_only=True)
     ws = wb.active
 
-    rows_iter = ws.iter_rows(values_only=True)
+    all_rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+
+    if not all_rows:
+        return [], 0
 
     # 第一行为标题
-    header_row = next(rows_iter, None)
-    if header_row is None:
-        wb.close()
-        return [], 0
+    header_row = all_rows[0]
+    data_row_list = all_rows[1:]
+
+    print(f"  表头：{list(header_row)}")
+    print(f"  总行数：{len(all_rows)}（标题 1 行 + 数据 {len(data_row_list)} 行）")
 
     # 建立列索引：Excel 列名 → (位置索引, API 字段名)
     col_map = {}  # {col_index: api_field_name}
@@ -38,17 +43,14 @@ def parse_xlsx(file_path):
             col_map[idx] = api_field
 
     if not col_map:
-        print(f"  警告：未匹配到任何已知列名，表头为：{list(header_row)}")
-        wb.close()
+        print(f"  警告：未匹配到任何已知列名")
         return [], 0
 
-    print(f"  匹配到 {len(col_map)} 个字段列")
+    print(f"  匹配到 {len(col_map)} 个字段列：{list(col_map.values())}")
 
     # 解析数据行
     data_rows = []
-    raw_row_count = 0
-    for row in rows_iter:
-        raw_row_count += 1
+    for row in data_row_list:
         record = {}
         for col_idx, api_field in col_map.items():
             value = row[col_idx] if col_idx < len(row) else None
@@ -60,7 +62,7 @@ def parse_xlsx(file_path):
             record[api_field] = value
         data_rows.append(record)
 
-    wb.close()
+    raw_row_count = len(data_row_list)
     print(f"  解析完成：{raw_row_count} 行数据")
     return data_rows, raw_row_count
 
