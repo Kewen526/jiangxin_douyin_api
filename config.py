@@ -53,9 +53,16 @@ UPLOAD_API_URL = "https://kewenai.asia/api/douyin/merchant/batchSave"
 UPLOAD_BATCH_SIZE = 50  # 每批最多上传条数
 
 # ─────────────────────────────────────────
-#  重试配置（下载数据为空时）
+#  登录状态上报 API
 # ─────────────────────────────────────────
-EMPTY_DATA_RETRY_INTERVAL = 600  # 10 分钟（秒）
+LOGIN_STATUS_API_URL = "https://kewenai.asia/api/douyin-login-status/update"
+LOGIN_STATUS_ID = 1
+
+# ─────────────────────────────────────────
+#  重试配置
+# ─────────────────────────────────────────
+EMPTY_DATA_RETRY_INTERVAL = 1800  # 30 分钟（秒）
+COOKIE_EXPIRED_RETRY_INTERVAL = 3600  # 1 小时（秒）
 
 # ─────────────────────────────────────────
 #  定时任务配置

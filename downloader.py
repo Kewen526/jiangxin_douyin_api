@@ -21,6 +21,11 @@ except ImportError:
 import config
 
 
+class CookieExpiredError(RuntimeError):
+    """Cookie 或 secsdk_csrf_token 过期"""
+    pass
+
+
 # ─────────────────────────────────────────
 #  Cookie
 # ─────────────────────────────────────────
@@ -343,7 +348,7 @@ def run_download():
         config.START_DATE, config.END_DATE, config.DISPLAY_FIELD,
     )
     if result.get("code") != 0:
-        raise RuntimeError("创建任务失败，请检查 Cookie 或 secsdk_csrf_token 是否过期")
+        raise CookieExpiredError("创建任务失败，请检查 Cookie 或 secsdk_csrf_token 是否过期")
 
     print("\n[5/5] 等待新文件生成 ...")
     raw_data, new_items = poll_list_panel(

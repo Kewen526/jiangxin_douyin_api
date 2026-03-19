@@ -8,14 +8,31 @@
   4. 分批上传到后台 API（每批最多 50 条）
 """
 
+import json
 import time
 import traceback
 from datetime import datetime, timedelta
 
+import requests
+
 import config
-from downloader import run_download
+from downloader import run_download, CookieExpiredError
 from parser import parse_xlsx
 from uploader import upload_data
+
+
+def report_login_status(is_valid):
+    """上报登录状态：is_valid=1 有效，is_valid=0 无效"""
+    try:
+        resp = requests.post(
+            config.LOGIN_STATUS_API_URL,
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({"id": config.LOGIN_STATUS_ID, "is_valid": is_valid}),
+            timeout=10,
+        )
+        print(f"  上报登录状态 is_valid={is_valid}，响应：{resp.status_code} {resp.text[:200]}")
+    except Exception as e:
+        print(f"  上报登录状态失败：{e}")
 
 
 def get_today_date():
@@ -75,7 +92,10 @@ def run_once():
 
 def run_with_retry():
     """
-    执行 run_once，如果数据为空则每 10 分钟重试，直到成功。
+    执行 run_once：
+      - 成功 → 上报 is_valid=1，结束
+      - 数据为空 → 30 分钟后重试
+      - Cookie 失效 → 上报 is_valid=0，1 小时后重试
     """
     attempt = 0
     while True:
@@ -87,12 +107,20 @@ def run_with_retry():
         try:
             success = run_once()
             if success:
+                report_login_status(1)
                 print("\n任务完成！")
                 return
             else:
                 retry_min = config.EMPTY_DATA_RETRY_INTERVAL // 60
                 print(f"\n数据尚未就绪，{retry_min} 分钟后重试 ...")
                 time.sleep(config.EMPTY_DATA_RETRY_INTERVAL)
+        except CookieExpiredError as e:
+            print(f"\n执行出错：{e}")
+            traceback.print_exc()
+            report_login_status(0)
+            retry_min = config.COOKIE_EXPIRED_RETRY_INTERVAL // 60
+            print(f"\nCookie 已失效，{retry_min} 分钟后重试 ...")
+            time.sleep(config.COOKIE_EXPIRED_RETRY_INTERVAL)
         except Exception as e:
             print(f"\n执行出错：{e}")
             traceback.print_exc()
