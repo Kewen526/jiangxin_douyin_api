@@ -90,7 +90,10 @@ def capture_secsdk_token_via_playwright(raw_cookies, account_id, ac_app):
     )
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            executable_path="/root/.cache/ms-playwright/chromium_headless_shell-1194/chrome-linux/headless_shell",
+        )
         context = browser.new_context()
         context.add_cookies(playwright_cookies)
 
