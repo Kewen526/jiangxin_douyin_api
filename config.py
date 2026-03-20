@@ -22,8 +22,8 @@ SECSDK_CSRF_TOKEN = ""
 # ─────────────────────────────────────────
 #  导出配置
 # ─────────────────────────────────────────
-# 导出日期范围（默认昨天）
-START_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+# 导出日期范围（默认近 30 天：从 30 天前到昨天）
+START_DATE = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 END_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 # 导出字段
