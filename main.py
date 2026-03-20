@@ -266,6 +266,7 @@ def print_usage():
     print()
     print("命令：")
     print("  (无参数)        正常启动定时任务")
+    print("  run             立即执行一次（跳过定时等待）")
     print("  log   [N]       显示最近 N 行日志（默认 50）")
     print("  errors [N]      显示最近 N 条错误记录（默认 20）")
     print("  status          查看进程运行状态和日志摘要")
@@ -273,6 +274,7 @@ def print_usage():
     print()
     print("示例：")
     print("  python main.py               # 启动服务")
+    print("  python main.py run           # 立即执行一次")
     print("  python main.py log 100       # 查看最近 100 行日志")
     print("  python main.py errors        # 查看最近错误")
     print("  python main.py status        # 查看运行状态")
@@ -283,6 +285,8 @@ if __name__ == "__main__":
 
     if not args:
         main()
+    elif args[0] == "run":
+        run_with_retry()
     elif args[0] == "log":
         n = int(args[1]) if len(args) > 1 else 50
         cmd_log(n)
