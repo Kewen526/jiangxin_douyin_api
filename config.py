@@ -63,13 +63,23 @@ LOGIN_STATUS_ID = 1
 #  重试配置
 # ─────────────────────────────────────────
 EMPTY_DATA_RETRY_INTERVAL = 1800  # 30 分钟（秒）
-COOKIE_EXPIRED_RETRY_INTERVAL = 3600  # 1 小时（秒）
+COOKIE_EXPIRED_RETRY_INTERVAL = 1800  # 30 分钟（秒）
 
 # ─────────────────────────────────────────
 #  定时任务配置
 # ─────────────────────────────────────────
 SCHEDULE_HOUR = 9   # 每天几点执行
 SCHEDULE_MINUTE = 0
+
+# ─────────────────────────────────────────
+#  数据库配置（用于查询缺失日期并补全）
+# ─────────────────────────────────────────
+DB_HOST = "8.146.210.145"
+DB_PORT = 3306
+DB_USER = "root"
+DB_PASSWORD = "Kewen888@"
+DB_NAME = "jx_data_info"
+DB_TABLE = "douyin_merchant_daily"
 
 # ─────────────────────────────────────────
 #  Excel 列名 → API 字段映射
