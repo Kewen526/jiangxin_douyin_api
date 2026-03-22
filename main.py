@@ -214,14 +214,40 @@ def run_once():
     return all_success
 
 
+def try_fill_missing_dates():
+    """
+    检查并补全当月缺失数据。
+    返回 True 表示全部补全成功或无需补全，
+    CookieExpiredError 会向上抛出。
+    """
+    print("\n>>> 检查当月缺失数据 ...")
+    missing_dates = get_missing_dates()
+    if not missing_dates:
+        print("  当月数据完整，无需补全")
+        return True
+
+    print(f"\n开始补全 {len(missing_dates)} 天缺失数据 ...")
+    for date_str in missing_dates:
+        try:
+            fill_missing_date(date_str)
+        except CookieExpiredError:
+            print("\n补全过程中 Cookie 失效，上报状态后停止补全")
+            report_login_status(0)
+            return False
+    print("\n所有缺失数据补全完成！")
+    return True
+
+
 def run_with_retry():
     """
     执行 run_once：
       - 成功 → 上报 is_valid=1 → 补全当月缺失数据 → 结束（等明天）
-      - 数据为空 → 30 分钟后重试
+      - 数据为空（cookie有效但数据没准备好）→ 上报 is_valid=1 → 先补全缺失 → 再重试当天
       - Cookie 失效 → 上报 is_valid=0，30 分钟后重试
     """
     attempt = 0
+    filled_missing = False  # 标记：本轮是否已完成补全
+
     while True:
         attempt += 1
         print(f"\n{'#' * 50}")
@@ -234,28 +260,29 @@ def run_with_retry():
                 report_login_status(1)
                 print("\n当天数据下载上传完成！")
 
-                # ── 补全当月缺失数据 ──
-                print("\n>>> 检查当月缺失数据 ...")
-                missing_dates = get_missing_dates()
-                if missing_dates:
-                    print(f"\n开始补全 {len(missing_dates)} 天缺失数据 ...")
-                    for date_str in missing_dates:
-                        try:
-                            fill_missing_date(date_str)
-                        except CookieExpiredError:
-                            print("\n补全过程中 Cookie 失效，上报状态后停止补全")
-                            report_login_status(0)
-                            break
-                    else:
-                        print("\n所有缺失数据补全完成！")
-                else:
-                    print("  当月数据完整，无需补全")
+                # 如果之前没补全过，现在补全
+                if not filled_missing:
+                    try_fill_missing_dates()
+                    filled_missing = True
 
                 print("\n今日任务全部完成，等待明天执行")
                 return
             else:
+                # 数据为空 = cookie 是有效的，只是当天数据没准备好
+                report_login_status(1)
+
+                # 先补全历史缺失数据（只执行一次，避免重复补全）
+                if not filled_missing:
+                    print("\n当天数据尚未就绪，先补全历史缺失数据 ...")
+                    try:
+                        try_fill_missing_dates()
+                    except Exception as e:
+                        print(f"\n补全过程出错（不影响当天重试）：{e}")
+                        traceback.print_exc()
+                    filled_missing = True
+
                 retry_min = config.EMPTY_DATA_RETRY_INTERVAL // 60
-                print(f"\n数据尚未就绪，{retry_min} 分钟后重试 ...")
+                print(f"\n当天数据尚未就绪，{retry_min} 分钟后重试 ...")
                 time.sleep(config.EMPTY_DATA_RETRY_INTERVAL)
         except CookieExpiredError as e:
             print(f"\n执行出错：{e}")
