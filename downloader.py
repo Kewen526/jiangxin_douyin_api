@@ -317,17 +317,23 @@ def download_file(url, save_path):
 #  完整下载流程
 # ─────────────────────────────────────────
 
-def run_download():
+def run_download(start_date=None, end_date=None):
     """
     执行完整下载流程，返回下载的 xlsx 文件路径列表。
     如果任何步骤失败，抛出异常。
+
+    - start_date / end_date: 可选，覆盖 config 中的默认日期范围。
+      补全缺失日期时，会传入单天日期。
     """
+    use_start = start_date or config.START_DATE
+    use_end = end_date or config.END_DATE
+
     print("\n[1/5] 从 API 获取 Cookie ...")
     cookie_dict, raw_cookies = fetch_cookies_from_api(
         config.COOKIE_API_URL, config.COOKIE_ACCOUNT
     )
     print(f"  accountId = {config.ACCOUNT_ID}")
-    print(f"  日期范围  = {config.START_DATE} ~ {config.END_DATE}")
+    print(f"  日期范围  = {use_start} ~ {use_end}")
 
     print("\n[2/5] 获取 secsdk_csrf_token ...")
     secsdk_token = get_secsdk_token(
@@ -345,7 +351,7 @@ def run_download():
     print("\n[4/5] 创建导出任务 ...")
     result = create_job(
         cookie_dict, config.ACCOUNT_ID, config.AC_APP, secsdk_token,
-        config.START_DATE, config.END_DATE, config.DISPLAY_FIELD,
+        use_start, use_end, config.DISPLAY_FIELD,
     )
     if result.get("code") != 0:
         raise CookieExpiredError("创建任务失败，请检查 Cookie 或 secsdk_csrf_token 是否过期")

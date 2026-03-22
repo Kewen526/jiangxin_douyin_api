@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 
 import requests
 
+import pymysql
+
 import config
 from downloader import run_download, CookieExpiredError
 from parser import parse_xlsx
@@ -39,9 +41,127 @@ def report_login_status(is_valid):
         print(f"  上报登录状态失败：{e}")
 
 
-def get_today_date():
-    """返回当天日期字符串，如 2026-03-04"""
-    return datetime.now().strftime("%Y-%m-%d")
+def get_data_date():
+    """
+    返回业务数据日期（昨天）。
+    无论当前时间是几点，数据日期始终为昨天。
+    例：2026-03-23 执行 → 返回 "2026-03-22"
+    """
+    return (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def get_missing_dates():
+    """
+    查询数据库，找出当月1号到昨天之间缺失的日期。
+    返回缺失日期的字符串列表，如 ["2026-03-01", "2026-03-05", ...]
+    """
+    data_date = get_data_date()
+    today = datetime.now()
+    # 当月第一天
+    first_day = today.replace(day=1).date()
+    # 昨天（即 data_date 对应的日期）
+    yesterday = datetime.strptime(data_date, "%Y-%m-%d").date()
+
+    if first_day > yesterday:
+        # 月初第一天还没有昨天数据，无需补全
+        return []
+
+    # 生成当月1号到昨天（不含当天 data_date，因为当天数据刚刚下载完）的完整日期列表
+    all_dates = set()
+    current = first_day
+    while current < yesterday:  # 不含 yesterday，因为 yesterday 已经在当次任务中处理了
+        all_dates.add(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+
+    if not all_dates:
+        return []
+
+    # 查询数据库中已有的日期
+    try:
+        conn = pymysql.connect(
+            host=config.DB_HOST,
+            port=config.DB_PORT,
+            user=config.DB_USER,
+            password=config.DB_PASSWORD,
+            database=config.DB_NAME,
+            charset="utf8mb4",
+            connect_timeout=10,
+        )
+        cursor = conn.cursor()
+        # 查询当月范围内 data_date 列已有的日期（去重）
+        sql = (
+            f"SELECT DISTINCT data_date FROM {config.DB_TABLE} "
+            f"WHERE data_date >= %s AND data_date <= %s"
+        )
+        # all_dates 范围是 first_day ~ yesterday-1（不含 yesterday）
+        last_check_date = (yesterday - timedelta(days=1)).strftime("%Y-%m-%d")
+        cursor.execute(sql, (first_day.strftime("%Y-%m-%d"), last_check_date))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        existing_dates = set()
+        for row in rows:
+            val = row[0]
+            if isinstance(val, str):
+                existing_dates.add(val)
+            else:
+                # date / datetime 对象
+                existing_dates.add(val.strftime("%Y-%m-%d"))
+
+        missing = sorted(all_dates - existing_dates)
+        print(f"\n数据库中已有 {len(existing_dates)} 天数据，缺失 {len(missing)} 天")
+        if missing:
+            print(f"  缺失日期：{missing}")
+        return missing
+
+    except Exception as e:
+        print(f"\n查询数据库缺失日期出错：{e}")
+        traceback.print_exc()
+        return []
+
+
+def fill_missing_date(date_str):
+    """
+    针对单个缺失日期，执行 下载 → 解析 → 上传 流程。
+    - date_str: 如 "2026-03-05"
+    返回 True 表示补全成功，False 表示失败。
+    """
+    print(f"\n{'=' * 50}")
+    print(f"  补全缺失数据  日期：{date_str}")
+    print(f"{'=' * 50}")
+
+    try:
+        downloaded_files = run_download(start_date=date_str, end_date=date_str)
+
+        if not downloaded_files:
+            print(f"  补全 {date_str}：没有下载到任何文件")
+            return False
+
+        for file_path in downloaded_files:
+            print(f"\n>>> 解析文件：{file_path}")
+            data_rows, raw_row_count = parse_xlsx(file_path)
+
+            if raw_row_count == 0:
+                print(f"  补全 {date_str}：数据为空（仅标题行），跳过")
+                continue
+
+            print(f"\n>>> 上传数据（{len(data_rows)} 条） ...")
+            success_count, fail_count = upload_data(data_rows, date_str)
+
+            if fail_count > 0:
+                print(f"  补全 {date_str}：有 {fail_count} 条上传失败")
+
+        print(f"  补全 {date_str}：完成")
+        return True
+
+    except CookieExpiredError:
+        print(f"  补全 {date_str}：Cookie 已失效，停止补全")
+        raise
+    except Exception as e:
+        print(f"  补全 {date_str} 出错：{e}")
+        traceback.print_exc()
+        return False
 
 
 def seconds_until_next_run(hour, minute):
@@ -61,12 +181,12 @@ def run_once():
     如果下载数据为空（只有标题行），返回 False 表示需要重试。
     成功则返回 True。
     """
-    today = get_today_date()
+    data_date = get_data_date()
     print(f"\n{'=' * 50}")
-    print(f"  开始执行  {today}")
+    print(f"  开始执行  数据日期：{data_date}")
     print(f"{'=' * 50}")
 
-    # ── 下载 ──
+    # ── 下载（使用 config 默认日期范围）──
     print("\n>>> 下载数据 ...")
     downloaded_files = run_download()
 
@@ -86,7 +206,7 @@ def run_once():
             continue
 
         print(f"\n>>> 上传数据（{len(data_rows)} 条） ...")
-        success_count, fail_count = upload_data(data_rows, today)
+        success_count, fail_count = upload_data(data_rows, data_date)
 
         if fail_count > 0:
             print(f"  有 {fail_count} 条上传失败")
@@ -97,9 +217,9 @@ def run_once():
 def run_with_retry():
     """
     执行 run_once：
-      - 成功 → 上报 is_valid=1，结束
+      - 成功 → 上报 is_valid=1 → 补全当月缺失数据 → 结束（等明天）
       - 数据为空 → 30 分钟后重试
-      - Cookie 失效 → 上报 is_valid=0，1 小时后重试
+      - Cookie 失效 → 上报 is_valid=0，30 分钟后重试
     """
     attempt = 0
     while True:
@@ -112,7 +232,26 @@ def run_with_retry():
             success = run_once()
             if success:
                 report_login_status(1)
-                print("\n任务完成！")
+                print("\n当天数据下载上传完成！")
+
+                # ── 补全当月缺失数据 ──
+                print("\n>>> 检查当月缺失数据 ...")
+                missing_dates = get_missing_dates()
+                if missing_dates:
+                    print(f"\n开始补全 {len(missing_dates)} 天缺失数据 ...")
+                    for date_str in missing_dates:
+                        try:
+                            fill_missing_date(date_str)
+                        except CookieExpiredError:
+                            print("\n补全过程中 Cookie 失效，上报状态后停止补全")
+                            report_login_status(0)
+                            break
+                    else:
+                        print("\n所有缺失数据补全完成！")
+                else:
+                    print("  当月数据完整，无需补全")
+
+                print("\n今日任务全部完成，等待明天执行")
                 return
             else:
                 retry_min = config.EMPTY_DATA_RETRY_INTERVAL // 60
